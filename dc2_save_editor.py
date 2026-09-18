@@ -2201,6 +2201,28 @@ def maps_editor_page(profile, baseline, bundle):
             maps_page(profile, baseline, bundle["lmaps"], "LOVELL MAPS")
         elif choice == 4 and bundle.get("emaps"):
             maps_page(profile, baseline, bundle["emaps"], "ELWYN MAPS")
+            
+
+SPOOF_VERSION = 0x0A     # first byte of the profile payload, 0A reads as v1.0
+def spoof_version_page(profile):
+    header("SPOOF GAME VERSION")
+    print(THIN)
+    if profile[0] == SPOOF_VERSION:
+        pause("  Game version is already spoofed to 1.0.")
+        return
+
+    print("  This will spoof the game version to 1.0 so that the following")
+    print("  items can be bought:")
+    print()
+    print("    Blaze Ball Quicksilver (BBQ)")
+    print("    Pristine Rod Ardent Duo Algid (PRADA)")
+    print("    Pluvious Uninterruptable Phased Photon Yanker (PUPPY)")
+    print()
+    print("  1. Spoof")
+    print("  2. Back")
+
+    if menu_choice(2) == 1:
+        profile[0] = SPOOF_VERSION
 
 
 def main_menu(profile, baseline, bundle, state, commit):
@@ -2217,13 +2239,21 @@ def main_menu(profile, baseline, bundle, state, commit):
 
         header("MAIN MENU", state["path"])
 
-        print("  1. Token Count            %s"
+        row = "  1. Spoof Game Version"
+        if profile[0] != baseline[0]:
+            print(row.ljust(28) + "(1 unsaved change)")
+        elif profile[0] == SPOOF_VERSION:
+            print(row.ljust(28) + "(Spoofed)")
+        else:
+            print(row)
+
+        print("  2. Token Count            %s"
               % preview(profile, baseline, token_offset))
 
         all_hero_offsets = [off for hero in heroes.values() for _, off, _ in hero["fields"]]
         changed = count_pending(profile, baseline, all_hero_offsets)
         note = ("(%d unsaved change%s)" % (changed, "" if changed == 1 else "s")) if changed else ""
-        row = "  2. Hero Stats"
+        row = "  3. Hero Stats"
         print(row.ljust(28) + note if note else row)
 
         gen_map_offsets = [off for entry in general_maps for _, off, _ in entry["fields"]] if general_maps else []
@@ -2231,16 +2261,16 @@ def main_menu(profile, baseline, bundle, state, commit):
         lov_map_offsets = [off for entry in lovell_maps for _, off, _ in entry["fields"]] if lovell_maps else []
         elw_map_offsets = [off for entry in elwyn_maps for _, off, _ in entry["fields"]] if elwyn_maps else []
         all_map_offsets = gen_map_offsets + mel_map_offsets + lov_map_offsets + elw_map_offsets
-        
+
         changed = count_pending(profile, baseline, all_map_offsets)
         note = ("(%d unsaved change%s)" % (changed, "" if changed == 1 else "s")) if changed else ""
-        row = "  3. Maps Editor"
+        row = "  4. Maps Editor"
         if all_map_offsets:
             print(row.ljust(28) + note if note else row)
         else:
             print(row.ljust(28) + "(Not found)")
 
-        row = "  4. Equipment Editor"
+        row = "  5. Equipment Editor"
         if equipment:
             changed = sum(1 for slots in equipment.values() for item in slots if item_changed(profile, item))
             if bundle.get("stash"):
@@ -2251,29 +2281,32 @@ def main_menu(profile, baseline, bundle, state, commit):
         else:
             print(row.ljust(28) + "(Not found)")
 
-        print("  5. Save")
-        print("  6. Exit")
+        print("  6. Save")
+        print("  7. Exit")
         if status:
             print("\n" + status)
 
-        choice = menu_choice(6)
+        choice = menu_choice(7)
         if choice is None:
-            choice = 6
+            choice = 7
         status = ""
 
         if choice == 1:
-            edit_field(profile, baseline, "MAIN MENU", "Token Count", token_offset)
+            spoof_version_page(profile)
 
         elif choice == 2:
+            edit_field(profile, baseline, "MAIN MENU", "Token Count", token_offset)
+
+        elif choice == 3:
             heroes_page(profile, baseline, bundle)
 
-        elif choice == 3 and all_map_offsets:
+        elif choice == 4 and all_map_offsets:
             maps_editor_page(profile, baseline, bundle)
 
-        elif choice == 4 and equipment:
+        elif choice == 5 and equipment:
             equipment_page(profile, baseline, bundle)
 
-        elif choice == 5:
+        elif choice == 6:
             status = commit(profile)
             if status is None:
                 baseline[:] = profile
@@ -2283,6 +2316,8 @@ def main_menu(profile, baseline, bundle, state, commit):
         else:
             all_offsets = [token_offset] + all_map_offsets + all_hero_offsets
             changed = count_pending(profile, baseline, all_offsets)
+            if profile[0] != baseline[0]:
+                changed += 1
             if equipment:
                 changed += sum(1 for slots in equipment.values()
                                for item in slots if item_changed(profile, item))
